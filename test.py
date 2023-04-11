@@ -39,8 +39,6 @@ def plot():    #Function to create the base plot, make sure to make global the l
     line, = ax.plot([1,2,3], [1,2,10])
 
 
-
-
 def updateplot(q):
     try:       #Try to check if there is data in the queue
         result=q.get_nowait()
