@@ -12,10 +12,35 @@ import queue
 import numpy as np
 from matplotlib.cm import get_cmap
 
-#import time
 from tkinter.filedialog import askopenfilename
 
+import os
+
 q = multiprocessing.Queue()
+
+QUEUE_SIZE = 100
+RECORD_QUEUE_SIZE = 8000
+SENSORS = 8
+subplots = []
+lines = []
+
+plt.rcParams["figure.figsize"] = (17.5,11)
+
+#creates a figure with 8 subplots, all in the same row, that share an x-axis
+fig, subplots = plt.subplots(SENSORS, 1, sharex=True)
+fig.tight_layout()
+
+name = "tab10"
+cmap = get_cmap(name) 
+colors = cmap.colors
+
+#plots the beginning state of the subplots
+for i in range(0,SENSORS):
+	ch_line,  = subplots[i].plot(range(QUEUE_SIZE),[0]*(QUEUE_SIZE), color=colors[i])
+	lines.append(ch_line)
+
+emg_queue = queue.Queue(QUEUE_SIZE)
+record_queue = queue.Queue(RECORD_QUEUE_SIZE)
 
 def worker(q):
 
@@ -34,31 +59,6 @@ def worker(q):
 			print("Worker Stopped")
 			quit()
 
-# ------------ Plot Setup ---------------
-QUEUE_SIZE = 100
-RECORD_QUEUE_SIZE = 8000
-SENSORS = 8
-subplots = []
-lines = []
-# Set the size of the plot
-plt.rcParams["figure.figsize"] = (17.5,11)
-# using the variable axs for multiple Axes
-fig, subplots = plt.subplots(SENSORS, 1, sharex=True)
-#fig.canvas.manager.set_window_title("8 Channel EMG plot")
-fig.tight_layout()
-# Set each line to a different color
-
-name = "tab10"
-cmap = get_cmap(name) 
-colors = cmap.colors
-
-for i in range(0,SENSORS):
-	ch_line,  = subplots[i].plot(range(QUEUE_SIZE),[0]*(QUEUE_SIZE), color=colors[i])
-	lines.append(ch_line)
-
-emg_queue = queue.Queue(QUEUE_SIZE)
-record_queue = queue.Queue(RECORD_QUEUE_SIZE)
-
 global startRecording
 startRecording = False
 
@@ -66,7 +66,6 @@ global playingRecorded
 playingRecorded = False
 
 def animate(i):
-	# Myo Plot
 
 	if playingRecorded == False:
 		while not(q.empty()):
@@ -76,11 +75,9 @@ def animate(i):
 				emg_queue.get()
 
 			emg_queue.put(myox)
-			#print(emg_queue.queue)
 
 			if (startRecording == True):
 				record_queue.put(myox)
-				#print(record_queue.qsize())
 
 		channels = np.array(emg_queue.queue)
 
@@ -89,7 +86,6 @@ def animate(i):
 			for i in range(0,SENSORS):
 				channel = channels[:,i]
 				lines[i].set_ydata(channel)
-				#subplots[i].set_ylim(0,max(1024,max(channel)))
 				subplots[i].set_ylim(-127, 128)
 
 
@@ -106,7 +102,6 @@ def animate(i):
 			for i in range(0,SENSORS):
 				channel = channels[:,i]
 				lines[i].set_ydata(channel)
-				#subplots[i].set_ylim(0,max(1024,max(channel)))
 				subplots[i].set_ylim(-127, 128)
 
 
@@ -116,23 +111,29 @@ seconds = 0
 global timerStarted
 timerStarted = False
 
-global startTime
+global userClicked
+userClicked = False
 
 def recordBtnClicked():
+
+	if (len(folderEntry.get()) == 0) or (movementCb.get() == ""):
+		print("Please specify the folder name and the movement!")
+		return
 
 	global startRecording
 	startRecording = True
 
 	global timerStarted
-	#global startTime
 
 	if (timerStarted == False):
 		timerStarted = True
-		#startTime = time.time()
 
 	global seconds
 
-	#seconds = time.time() - startTime
+	global userClicked
+	if (userClicked):
+		seconds = 0
+		userClicked = False
 
 	timerLbl.config(text = f"Elapsed time: {seconds}")
 
@@ -144,10 +145,10 @@ def recordBtnClicked():
 			startRecording = False
 
 		window.after(980, recordBtnClicked)
-		#print(record_queue.qsize())
 
 	else:
 		startRecording = False
+		userClicked = True
 
 		print(record_queue.qsize())
 
@@ -156,11 +157,19 @@ def recordBtnClicked():
 		if (cutSize % 2 != 0):
 			cutSize += 1
 
-		file = open('test.csv', 'w')
+		foldername = ".\\Posnetki\\" + folderEntry.get() + "\\"
+
+		if not os.path.exists(foldername):
+			os.makedirs(foldername)
+
+		filename = foldername + str(movementCb.current()) + ".csv"
+
+		file = open(filename, 'w')
 
 		print("Writing to file...")
 
 		tempQueueSize = record_queue.qsize()
+		
 		for j in range(0, tempQueueSize):
 
 			if j < cutSize:
@@ -184,24 +193,43 @@ def recordBtnClicked():
 			
 		file.close()
 
+		record_queue.queue.clear()
+
 playQueue = queue.Queue(6000)
-global playArray
-playArray = np.array([])
 
 def importBtnClicked():
 
-	#filename = askopenfilename() # show an "Open" dialog box and return the path to the selected file
-	filename = "C:\\Users\\Viktorija\\Desktop\\NNKR\\N1\\out\\myoOutput\\test.csv"
+	filename = askopenfilename()
 
 	f = open(filename, "r")
 	
 	measurementList = f.read().splitlines()
 
-	#print(measurementList[0])
-
 	f.close()
 
-	#global playArray
+	movementNumber = int(os.path.basename(filename).split('.')[0])
+
+	if movementNumber == 0:
+		filename = "img/pest.png"
+	elif movementNumber == 1:
+		filename = "img/ekstenzija.png"
+	elif movementNumber == 2:
+		filename = "img/fleksija.png"
+	elif movementNumber == 3:
+		filename = "img/ulnarnaDeviacija.png"
+	elif movementNumber == 4:
+		filename = "img/radialnaDeviacija.png"
+	elif movementNumber == 5:
+		filename = "img/pronacija.png"
+	elif movementNumber == 6:
+		filename = "img/supinacija.png"
+	else:
+		filename = "img/nevtralenPolozaj.png"
+
+	movementImg = ImageTk.PhotoImage(Image.open(filename).resize((250, 200)))
+
+	movementImgLbl.configure(image=movementImg)
+	movementImgLbl.image = movementImg
 
 	for line in measurementList:
 		tempCharLine = line.split(';')
@@ -209,8 +237,6 @@ def importBtnClicked():
 		tempIntLine = [eval(i) for i in tempCharLine]
 
 		playQueue.put(tempIntLine)
-		#temp = np.array(tempIntLine)
-		#playArray = np.concatenate((playArray, temp))
 
 	importStatusLbl.config(text = "Successfully imported!")
 
@@ -246,6 +272,8 @@ def stopBtnClicked():
 
 	playBtn.configure(state='disabled')
 	stopBtn.configure(state='disabled')
+
+	importStatusLbl.config(text = "")
 
 
 window = tk.Tk()
@@ -325,7 +353,6 @@ if __name__ == '__main__':
 	p.start()
 
 	while(q.empty()):
-		# Wait until we actually get data
 		continue
 
 	anim = animation.FuncAnimation(fig, animate, blit=False, interval=1)
