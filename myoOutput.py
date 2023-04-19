@@ -12,15 +12,13 @@ import queue
 import numpy as np
 from matplotlib.cm import get_cmap
 
-import time
-
-
-#Retrieving a recording and showing it
-
+#import time
+from tkinter.filedialog import askopenfilename
 
 q = multiprocessing.Queue()
 
 def worker(q):
+
 	m = Myo(mode=emg_mode.RAW)
 	m.connect()
 	
@@ -29,7 +27,6 @@ def worker(q):
 
 	m.add_emg_handler(add_to_queue)
 
-	"""worker function"""
 	while True:
 		try:
 			m.run()
@@ -65,48 +62,53 @@ record_queue = queue.Queue(RECORD_QUEUE_SIZE)
 global startRecording
 startRecording = False
 
+global playingRecorded
+playingRecorded = False
+
 def animate(i):
 	# Myo Plot
-	while not(q.empty()):
-		myox = list(q.get())
+
+	if playingRecorded == False:
+		while not(q.empty()):
+			myox = list(q.get())
+
+			if (emg_queue.full()):
+				emg_queue.get()
+
+			emg_queue.put(myox)
+			#print(emg_queue.queue)
+
+			if (startRecording == True):
+				record_queue.put(myox)
+				#print(record_queue.qsize())
+
+		channels = np.array(emg_queue.queue)
 
 		if (emg_queue.full()):
-			emg_queue.get()
 
-		emg_queue.put(myox)
+			for i in range(0,SENSORS):
+				channel = channels[:,i]
+				lines[i].set_ydata(channel)
+				#subplots[i].set_ylim(0,max(1024,max(channel)))
+				subplots[i].set_ylim(-127, 128)
 
-		if (startRecording == True):
-			#print(startRecording)
-			record_queue.put(myox)
-			#print(record_queue.qsize())
 
-	channels = np.array(emg_queue.queue)
+	else:
+		if not (playQueue.empty()):
+			
+			emg_queue.queue.clear()
 
-	if (emg_queue.full()):
-		for i in range(0,SENSORS):
-			channel = channels[:,i]
-			lines[i].set_ydata(channel)
-			#subplots[i].set_ylim(0,max(1024,max(channel)))
-			subplots[i].set_ylim(-127, 128)
+			while not (emg_queue.full()):
+				emg_queue.put(playQueue.get())
 
-def timerFunction(): 
-	#start = time.time()
+			channels = np.array(emg_queue.queue)
 
-	#elapsedTime = time.time() - start
-	#while (elapsedTime < 35):
-	#	temp = "Elapsed time: " + str(elapsedTime)
+			for i in range(0,SENSORS):
+				channel = channels[:,i]
+				lines[i].set_ydata(channel)
+				#subplots[i].set_ylim(0,max(1024,max(channel)))
+				subplots[i].set_ylim(-127, 128)
 
-	#	print(temp)
-
-	#	timerLbl.config(text=temp)
-	#	timerLbl.update()
-
-	#	elapsedTime = time.time() - start
-
-	if seconds < 35:
-		timerLbl.config(text = "Elapsed time: {}".format(seconds))
-		timerLbl.after(1000, timerFunction) # call this method again in 1,000 milliseconds
-		seconds += 1
 
 global seconds
 seconds = 0
@@ -152,13 +154,14 @@ def recordBtnClicked():
 		cutSize = int((record_queue.qsize() - 6000) / 2)
 
 		if (cutSize % 2 != 0):
-			cutSize -= 1
+			cutSize += 1
 
-		file = open('test.txt', 'w')
+		file = open('test.csv', 'w')
 
 		print("Writing to file...")
 
-		for j in range(0, record_queue.qsize()):
+		tempQueueSize = record_queue.qsize()
+		for j in range(0, tempQueueSize):
 
 			if j < cutSize:
 				record_queue.get()
@@ -174,15 +177,75 @@ def recordBtnClicked():
 					if (i + 1 != len(popOut)):
 						file.write(";")
 
-				if ((j + 1) != record_queue.qsize()):
-					file.write('\n')
+				file.write('\n')
 
 			else:
 				break
 			
 		file.close()
 
-		print("Done")
+playQueue = queue.Queue(6000)
+global playArray
+playArray = np.array([])
+
+def importBtnClicked():
+
+	#filename = askopenfilename() # show an "Open" dialog box and return the path to the selected file
+	filename = "C:\\Users\\Viktorija\\Desktop\\NNKR\\N1\\out\\myoOutput\\test.csv"
+
+	f = open(filename, "r")
+	
+	measurementList = f.read().splitlines()
+
+	#print(measurementList[0])
+
+	f.close()
+
+	#global playArray
+
+	for line in measurementList:
+		tempCharLine = line.split(';')
+
+		tempIntLine = [eval(i) for i in tempCharLine]
+
+		playQueue.put(tempIntLine)
+		#temp = np.array(tempIntLine)
+		#playArray = np.concatenate((playArray, temp))
+
+	importStatusLbl.config(text = "Successfully imported!")
+
+	recordBtn.configure(state='disabled')
+	movementTypeLbl.configure(state='disabled')
+	movementCb.configure(state='disabled')
+	folderEntryLbl.configure(state='disabled')
+	folderEntry.configure(state='disabled')
+
+	playBtn.configure(state='normal')
+	stopBtn.configure(state='normal')
+
+	
+def playBtnClicked():
+
+	print("Started playing...")
+
+	global playingRecorded
+	playingRecorded = True
+
+def stopBtnClicked():
+	
+	print("Stopping...")
+
+	global playingRecorded
+	playingRecorded = False
+
+	recordBtn.configure(state='normal')
+	movementTypeLbl.configure(state='normal')
+	movementCb.configure(state='normal')
+	folderEntryLbl.configure(state='normal')
+	folderEntry.configure(state='normal')
+
+	playBtn.configure(state='disabled')
+	stopBtn.configure(state='disabled')
 
 
 window = tk.Tk()
@@ -191,19 +254,18 @@ window.title("Myo Output")
 
 global canvas
 canvas = FigureCanvasTkAgg(fig, master = window)  
-canvas.get_tk_widget().grid(row=0, column=2, rowspan=8)
+canvas.get_tk_widget().grid(row=0, column=2, rowspan=9)
 
 #configure row and column size
 
-for i in range(8):
+for i in range(10):
 	window.rowconfigure(i, weight=1, minsize=1)
 
 #instantiate buttons, labels, combobox, image
 recordBtn = ttk.Button(window, text="Record", command=recordBtnClicked)
-playBtn = ttk.Button(window, text="Play")
-stopBtn = ttk.Button(window, text="Stop")
-importBtn = ttk.Button(window, text="Import")
-saveBtn = ttk.Button(window, text="Save")
+importBtn = ttk.Button(window, text="Import", command=importBtnClicked)
+playBtn = ttk.Button(window, text="Play", command=playBtnClicked, state='disabled')
+stopBtn = ttk.Button(window, text="Stop", command=stopBtnClicked, state='disabled')
 
 movementTypeLbl = ttk.Label(window, text="Movement: ")
 movementCb = ttk.Combobox(window)
@@ -212,18 +274,23 @@ movementCb['state'] = 'readonly'
 
 movementImgLbl = ttk.Label(window)
 timerLbl = ttk.Label(window)
+importStatusLbl = ttk.Label(window)
+folderEntryLbl = ttk.Label(window, text="Folder Name: ")
+
+folderEntry = ttk.Entry(window)
 
 #add instances to grid
-movementTypeLbl.grid(row=0, column=0, sticky="ew")
-movementCb.grid(row=0, column=1, sticky="ew")
-movementImgLbl.grid(row=1, column=0, columnspan=2)
-recordBtn.grid(row=2, column=0, columnspan=2, sticky="ew")
-timerLbl.grid(row=3, column=0, columnspan=2, sticky="ew")
-saveBtn.grid(row=4, column=0, columnspan=2, sticky="ew")
+folderEntryLbl.grid(row=0, column=0, sticky="ew")
+folderEntry.grid(row=0, column=1, sticky="ew")
+movementTypeLbl.grid(row=1, column=0, sticky="ew")
+movementCb.grid(row=1, column=1, sticky="ew")
+movementImgLbl.grid(row=2, column=0, columnspan=2)
+recordBtn.grid(row=3, column=0, columnspan=2, sticky="ew")
+timerLbl.grid(row=4, column=0, columnspan=2, sticky="ew")
 importBtn.grid(row=5, column=0, columnspan=2, sticky="ew")
-playBtn.grid(row=6, column=0, columnspan=2, sticky="ew")
-stopBtn.grid(row=7, column=0, columnspan=2, sticky="ew")
-
+importStatusLbl.grid(row=6, column=0, columnspan=2, sticky="ew")
+playBtn.grid(row=7, column=0, columnspan=2, sticky="ew")
+stopBtn.grid(row=8, column=0, columnspan=2, sticky="ew")
 
 def showMovementImg(event):
 
