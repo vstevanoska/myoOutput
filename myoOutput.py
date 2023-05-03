@@ -284,12 +284,10 @@ global canvas
 canvas = FigureCanvasTkAgg(fig, master = window)  
 canvas.get_tk_widget().grid(row=0, column=2, rowspan=9)
 
-#configure row and column size
-
+#konfiguriranje velikosti vrstic
 for i in range(10):
 	window.rowconfigure(i, weight=1, minsize=1)
 
-#instantiate buttons, labels, combobox, image
 recordBtn = ttk.Button(window, text="Record", command=recordBtnClicked)
 importBtn = ttk.Button(window, text="Import", command=importBtnClicked)
 playBtn = ttk.Button(window, text="Play", command=playBtnClicked, state='disabled')
@@ -307,7 +305,7 @@ folderEntryLbl = ttk.Label(window, text="Folder Name: ")
 
 folderEntry = ttk.Entry(window)
 
-#add instances to grid
+#dodajanje instanc v grid
 folderEntryLbl.grid(row=0, column=0, sticky="ew")
 folderEntry.grid(row=0, column=1, sticky="ew")
 movementTypeLbl.grid(row=1, column=0, sticky="ew")
