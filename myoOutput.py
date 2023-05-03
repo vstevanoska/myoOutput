@@ -26,15 +26,16 @@ lines = []
 
 plt.rcParams["figure.figsize"] = (17.5,11)
 
-#creates a figure with 8 subplots, all in the same row, that share an x-axis
+#ustvarimo sliko z 8 subploti v istem stolpcu, ki imajo skupno os x.
 fig, subplots = plt.subplots(SENSORS, 1, sharex=True)
 fig.tight_layout()
 
+#barve
 name = "tab10"
 cmap = get_cmap(name) 
 colors = cmap.colors
 
-#plots the beginning state of the subplots
+#izriše začetno stanje subplotov
 for i in range(0,SENSORS):
 	ch_line,  = subplots[i].plot(range(QUEUE_SIZE),[0]*(QUEUE_SIZE), color=colors[i])
 	lines.append(ch_line)
@@ -67,6 +68,7 @@ playingRecorded = False
 
 def animate(i):
 
+	#če ne predvajamo uvožene datoteke
 	if playingRecorded == False:
 		while not(q.empty()):
 			myox = list(q.get())
@@ -76,6 +78,7 @@ def animate(i):
 
 			emg_queue.put(myox)
 
+			#če snemamo gibanje, dodamo meritev tudi v record_queue
 			if (startRecording == True):
 				record_queue.put(myox)
 
@@ -89,10 +92,12 @@ def animate(i):
 				subplots[i].set_ylim(-127, 128)
 
 
+	#če predvajamo uvoženo datoteko
 	else:
 		if not (playQueue.empty()):
 			
-			emg_queue.queue.clear()
+			while emg_queue.qsize() > (QUEUE_SIZE / 2):
+				emg_queue.get()
 
 			while not (emg_queue.full()):
 				emg_queue.put(playQueue.get())
@@ -104,12 +109,8 @@ def animate(i):
 				lines[i].set_ydata(channel)
 				subplots[i].set_ylim(-127, 128)
 
-
 global seconds
 seconds = 0
-
-global timerStarted
-timerStarted = False
 
 global userClicked
 userClicked = False
@@ -123,14 +124,10 @@ def recordBtnClicked():
 	global startRecording
 	startRecording = True
 
-	global timerStarted
-
-	if (timerStarted == False):
-		timerStarted = True
-
 	global seconds
-
 	global userClicked
+
+	#ponastavitev števca
 	if (userClicked):
 		seconds = 0
 		userClicked = False
@@ -144,6 +141,7 @@ def recordBtnClicked():
 		if (seconds == 35):
 			startRecording = False
 
+		#recordBtnClicked se pokliče vsakih 980 milisekund, da se poveča števec
 		window.after(980, recordBtnClicked)
 
 	else:
@@ -152,6 +150,7 @@ def recordBtnClicked():
 
 		print(record_queue.qsize())
 
+		#izrežemo prvih in zadnjih nekaj vzorcev, da bi zaokrožili na 6000
 		cutSize = int((record_queue.qsize() - 6000) / 2)
 
 		if (cutSize % 2 != 0):
@@ -207,6 +206,7 @@ def importBtnClicked():
 
 	f.close()
 
+	#tip giba dobimo iz imena datoteke
 	movementNumber = int(os.path.basename(filename).split('.')[0])
 
 	if movementNumber == 0:
